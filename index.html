@@ -143,6 +143,25 @@
             color: #dc2626;
         }
 
+        .edit-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.3em;
+            transition: all 0.3s ease;
+            padding: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #6366f1;
+            box-shadow: none;
+        }
+
+        .edit-icon:hover {
+            transform: scale(1.2);
+            color: #4f46e5;
+        }
+
         .sort-controls {
             display: flex;
             gap: 10px;
@@ -190,10 +209,16 @@
             background: linear-gradient(135deg, #f0f4ff 0%, #f8faff 100%);
         }
 
-        .goal-rank {
+        .goal-rank-container {
             position: absolute;
             top: 10px;
             right: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .goal-rank {
             background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             color: white;
             width: 45px;
@@ -403,6 +428,55 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+        }
+
+        .rank-edit-section {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #10b981;
+            margin-bottom: 20px;
+        }
+
+        .rank-edit-section-title {
+            font-size: 1em;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 12px;
+        }
+
+        .rank-edit-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .rank-edit-container .form-group {
+            flex: 1;
+        }
+
+        .rank-edit-container .form-group label {
+            margin-bottom: 6px;
+            font-size: 0.9em;
+        }
+
+        .rank-edit-container .form-group input {
+            padding: 10px 12px;
+            font-size: 0.95em;
+        }
+
+        .rank-edit-container button {
+            padding: 10px 20px;
+            font-size: 0.95em;
+        }
+
+        .rank-edit-container button.cancel {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .rank-edit-container button.cancel:hover {
+            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
         }
 
         .content {
@@ -638,6 +712,14 @@
             .goal-card-stats {
                 grid-template-columns: 1fr;
             }
+
+            .rank-edit-container {
+                flex-direction: column;
+            }
+
+            .rank-edit-container button {
+                width: 100%;
+            }
         }
 
         ::-webkit-scrollbar {
@@ -708,9 +790,6 @@
         </div>
     </div>
 
-    <!-- Hidden file input for import -->
-    <input type="file" id="fileInput" style="display: none;" accept=".json">
-
     <!-- Modal for adding action items -->
     <div class="modal" id="actionModal">
         <div class="modal-content">
@@ -744,6 +823,7 @@
         let currentGoalId = null;
         let currentActionId = null;
         let selectedGoalId = null;
+        let editingRankId = null;
 
         window.addEventListener('DOMContentLoaded', () => {
             loadData();
@@ -840,7 +920,9 @@
 
                 return `
                     <div class="goal-card" onclick="openDetailPanel(${goal.id})">
-                        <div class="goal-rank">${goal.rank}</div>
+                        <div class="goal-rank-container">
+                            <div class="goal-rank">${goal.rank}</div>
+                        </div>
                         <div class="goal-card-header">
                             <div class="goal-card-title">${escapeHtml(goal.title)}</div>
                         </div>
@@ -876,10 +958,6 @@
                     <div class="detail-section-title">Goal Summary</div>
                     <div class="detail-stats">
                         <div class="detail-stat">
-                            <div class="detail-stat-label">Rank (Priority)</div>
-                            <div class="detail-stat-value">#${goal.rank}</div>
-                        </div>
-                        <div class="detail-stat">
                             <div class="detail-stat-label">Overall Progress</div>
                             <div class="detail-stat-value">${progress}%</div>
                         </div>
@@ -887,10 +965,18 @@
                             <div class="detail-stat-label">Actions Complete</div>
                             <div class="detail-stat-value">${stats.completedActions}/${stats.totalActions}</div>
                         </div>
-                        <div class="detail-stat">
-                            <div class="detail-stat-label">Sub-Tasks Complete</div>
-                            <div class="detail-stat-value">${stats.completedSubActions}/${stats.totalSubActions}</div>
+                    </div>
+                </div>
+
+                <div class="rank-edit-section">
+                    <div class="rank-edit-section-title">✏️ Edit Rank (Priority)</div>
+                    <div class="rank-edit-container">
+                        <div class="form-group">
+                            <label>New Rank</label>
+                            <input type="number" id="newRankInput" value="${goal.rank}" min="1">
                         </div>
+                        <button class="secondary" onclick="saveRank(${goalId})">💾 Save</button>
+                        <button class="cancel" style="padding: 10px 20px; font-size: 0.95em;" onclick="cancelRankEdit()">Cancel</button>
                     </div>
                 </div>
 
@@ -948,6 +1034,33 @@
             document.getElementById('detailPanel').classList.remove('active');
             document.getElementById('detailOverlay').classList.remove('active');
             selectedGoalId = null;
+            editingRankId = null;
+        }
+
+        function saveRank(goalId) {
+            const newRankInput = document.getElementById('newRankInput');
+            const newRank = parseInt(newRankInput.value);
+
+            if (!newRank || newRank < 1) {
+                alert('Please enter a valid rank (minimum 1)');
+                return;
+            }
+
+            const goal = goalsData.find(g => g.id === goalId);
+            if (goal) {
+                goal.rank = newRank;
+                saveData();
+                renderGoals();
+                openDetailPanel(goalId);
+                alert('✅ Rank updated successfully!');
+            }
+        }
+
+        function cancelRankEdit() {
+            editingRankId = null;
+            if (selectedGoalId) {
+                openDetailPanel(selectedGoalId);
+            }
         }
 
         function openActionModal(goalId) {
